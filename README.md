@@ -276,28 +276,35 @@ const MN = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ
 // ── สีประจำปี ──
 const YR_COL = {2565:'#6366f1',2566:'#0ea5e9',2567:'#10b981',2568:'#e07b1e',2569:'#d97706'};
 
-const monthlyTotals = {
+// ══════════════════════════════════════════════════════
+// 🔗 วาง URL Apps Script ที่ Deploy แล้วตรงนี้
+// ══════════════════════════════════════════════════════
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwr3t8eeAp3J7Dnmp0rDFqZE3peOj6tGENhmNH6IFHQ2RKdDSD6SnZx9CiUX3I12ZaY/exec";
+// ══════════════════════════════════════════════════════
+
+// ── ข้อมูล fallback (ใช้เมื่อยังไม่ได้ตั้งค่า URL) ──
+let monthlyTotals = {
   2565:[703500,625593,863409,614327,515879,739565,644794,663112,425047,566514,604533,543785],
   2566:[566617,558166,977196,591037,764234,1045746,953428,975150,949402,940318,799625,848979],
   2567:[723411,1122234,1100079,1010138,796879,745794,1056028,714654,801964,818682,721019,564056],
   2568:[906022,502019,1210079,897671,857208,1495712,872465,836232,937942,1291463,954669,1072340],
   2569:[706159,830421,1068785,1249813,0,0,0,0,0,0,0,0],
 };
-const yearlyTotals = {2565:7510059,2566:9969898,2567:10174939,2568:11833822,2569:3855178};
-const quarterlyTotals = {
+let yearlyTotals = {2565:7510059,2566:9969898,2567:10174939,2568:11833822,2569:3855178};
+let quarterlyTotals = {
   2565:[2192503,1869771,1732953,1714832],
   2566:[2101979,2401017,2877979,2588922],
   2567:[2945724,2552811,2572647,2103757],
   2568:[2618120,3250592,2646639,3318472],
   2569:[2605365,0,0,0],
 };
-const rebateSummary = {
+let rebateSummary = {
   2567:{total:211245,pct:2.076},
   2568:{total:313191,pct:2.647},
   "2569_current":167309,
   "2569_proposed":310666,
 };
-const products = [
+let products = [
   {
     name:"ปูนก่ออิฐมวลเบา ตราจิงโจ้ ม่วง (40กก.)",
     monthly:{
@@ -708,7 +715,107 @@ function showPage(idx) {
   }
   window.scrollTo({top:0,behavior:'smooth'});
 }
-showPage(0);
+// ── FETCH จาก Google Apps Script ──
+async function loadFromSheet() {
+  if (!APPS_SCRIPT_URL || APPS_SCRIPT_URL === "YOUR_APPS_SCRIPT_URL_HERE") {
+    // ยังไม่ตั้งค่า URL → ใช้ข้อมูล fallback
+    showPage(0);
+    return;
+  }
+
+  // แสดง loading
+  document.getElementById('mainContent').innerHTML = `
+    <div style="text-align:center;padding:60px 20px;color:#6b7280">
+      <div style="font-size:28px;margin-bottom:12px">⏳</div>
+      <div style="font-size:14px;font-weight:600">กำลังโหลดข้อมูลจาก Google Sheets…</div>
+    </div>`;
+
+  try {
+    const res = await fetch(APPS_SCRIPT_URL);
+    const d = await res.json();
+    if (d.error) throw new Error(d.error);
+
+    // อัพเดทตัวแปรทั้งหมด
+    monthlyTotals   = d.monthlyTotals;
+    yearlyTotals    = d.yearlyTotals;
+    quarterlyTotals = d.quarterlyTotals;
+    rebateSummary   = d.rebateSummary;
+    products        = d.products;
+
+    // แปลง key string → number ให้ทุก object
+    const fixKeys = (obj) => {
+      if (!obj || typeof obj !== 'object') return obj;
+      [2565,2566,2567,2568,2569].forEach(y => {
+        if (obj[String(y)] !== undefined) obj[y] = obj[String(y)];
+      });
+      return obj;
+    };
+
+    monthlyTotals   = fixKeys(d.monthlyTotals)   || monthlyTotals;
+    yearlyTotals    = fixKeys(d.yearlyTotals)     || yearlyTotals;
+    rebateSummary   = fixKeys(d.rebateSummary)    || rebateSummary;
+    if (rebateSummary[2567]) fixKeys(rebateSummary[2567]);
+    if (rebateSummary[2568]) fixKeys(rebateSummary[2568]);
+
+    // คำนวณ quarterlyTotals จาก monthlyTotals (Script ส่งมาว่าง)
+    quarterlyTotals = {};
+    [2565,2566,2567,2568,2569].forEach(y => {
+      const m = monthlyTotals[y] || new Array(12).fill(0);
+      quarterlyTotals[y] = [
+        m[0]+m[1]+m[2],
+        m[3]+m[4]+m[5],
+        m[6]+m[7]+m[8],
+        m[9]+m[10]+m[11],
+      ];
+    });
+
+    // แก้ products — fix keys และคำนวณ yearlyTotals จาก monthly ถ้าหาย
+    products = (d.products || products).map(p => {
+      fixKeys(p.monthly); fixKeys(p.bags);
+      // ตรวจว่า array ยาว 12 หรือเปล่า ถ้าไม่ครบให้ตัดแค่ 12
+      [2565,2566,2567,2568,2569].forEach(y => {
+        if (p.monthly[y]) p.monthly[y] = p.monthly[y].slice(0,12).map(v=>v||0);
+        if (p.bags[y])    p.bags[y]    = p.bags[y].slice(0,12).map(v=>v||0);
+        // เติมให้ครบ 12
+        while((p.monthly[y]||[]).length < 12) p.monthly[y].push(0);
+        while((p.bags[y]||[]).length < 12)    p.bags[y].push(0);
+      });
+      return p;
+    });
+
+    // อัพเดท footer ด้วยเวลาล่าสุด
+    if (d.updatedAt) {
+      const dt = new Date(d.updatedAt);
+      const ts = dt.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',hour12:false});
+      document.querySelector('footer').innerHTML =
+        `ดึงข้อมูลจาก Google Sheets &nbsp;|&nbsp; อัพเดทล่าสุด: ${ts} &nbsp;|&nbsp; หน่วย: บาท (ไม่รวม VAT)`;
+    }
+
+  } catch (err) {
+    console.warn('ดึงข้อมูลไม่ได้ ใช้ข้อมูลสำรองแทน:', err);
+    document.getElementById('mainContent').innerHTML = `
+      <div style="text-align:center;padding:40px 20px;color:#d97706">
+        <div style="font-size:22px;margin-bottom:8px">⚠️</div>
+        <div style="font-size:13px;font-weight:600">เชื่อมต่อ Google Sheets ไม่ได้ — แสดงข้อมูลสำรอง</div>
+      </div>`;
+    await new Promise(r => setTimeout(r, 1500));
+  }
+
+  // rebuild page divs (เพราะ innerHTML ถูก clear ระหว่าง loading)
+  const mc = document.getElementById('mainContent');
+  mc.innerHTML = '';
+  rendered = {};
+  pages.forEach((pg, i) => {
+    const div = document.createElement('div');
+    div.className = 'page' + (i===0?' active':'');
+    div.id = pg.id;
+    mc.appendChild(div);
+  });
+
+  showPage(0);
+}
+
+loadFromSheet();
 </script>
 </body>
 </html>
