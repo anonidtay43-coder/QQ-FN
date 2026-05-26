@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="th">
 <head>
 <meta charset="UTF-8">
@@ -61,6 +62,24 @@ body {
 }
 .tab-btn.active, .tab-btn:hover { color: var(--text); background: var(--surface2); }
 .tab-btn.active { color: var(--accent); }
+.data-btn {
+  white-space: nowrap;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  border: none;
+  color: #fff;
+  font-family: var(--font);
+  font-size: 12px; font-weight: 700;
+  padding: 5px 11px; border-radius: 20px;
+  cursor: pointer; transition: all .2s;
+  text-decoration: none;
+  display: inline-flex; align-items: center; gap: 5px;
+  letter-spacing: .3px;
+  box-shadow: 0 1px 4px rgba(22,163,74,.35);
+  flex-shrink: 0;
+}
+.data-btn:hover { background: linear-gradient(135deg, #15803d, #166534); box-shadow: 0 2px 8px rgba(22,163,74,.45); transform: translateY(-1px); }
+.data-btn svg { width: 12px; height: 12px; flex-shrink: 0; }
+.nav-right { display: flex; align-items: center; gap: 6px; }
 
 main { padding: 16px; max-width: 900px; margin: 0 auto; }
 .page { display: none; animation: fadeIn .25s ease; }
@@ -241,7 +260,13 @@ footer {
 <body>
 <div class="topbar">
   <div class="brand">QUICK<span>COAT</span></div>
-  <nav class="nav-tabs" id="navTabs"></nav>
+  <div class="nav-right">
+    <nav class="nav-tabs" id="navTabs"></nav>
+    <a id="dataBtnLink" class="data-btn" href="https://docs.google.com/spreadsheets/d/1aKR6KmUGosext5SE1d92VF-CVEHeCJEFfM_IvHE6gzY/edit?gid=246191077#gid=246191077" target="_blank" rel="noopener" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+      ดู DATA
+    </a>
+  </div>
 </div>
 <main id="mainContent"></main>
 <footer>ข้อมูล ณ เดือนเม.ย. 2569 &nbsp;|&nbsp; หน่วย: บาท (ไม่รวม VAT)</footer>
@@ -681,10 +706,12 @@ function showPage(idx) {
     document.getElementById(pages[idx].id).innerHTML = pages[idx].build();
     rendered[idx]=true;
   }
+  // แสดง/ซ่อนปุ่ม DATA เฉพาะหน้า "สินค้า 4 เดือน" (index 1)
+  const dataBtn = document.getElementById('dataBtnLink');
+  if(dataBtn) dataBtn.style.display = idx === 1 ? 'inline-flex' : 'none';
   window.scrollTo({top:0,behavior:'smooth'});
 }
 showPage(0);
 </script>
 </body>
 </html>
-
